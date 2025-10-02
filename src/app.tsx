@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { Trash2, Camera, Scan, Clipboard } from "lucide-react";
 import jsQR from "jsqr";
 
-const App: React.FC = () => {
+const app: React.FC = () => {
   const [scannedData, setScannedData] = useState<string[]>([]);
   const [isScanning, setIsScanning] = useState(false);
   const [scanResult, setScanResult] = useState<string | null>(null);
