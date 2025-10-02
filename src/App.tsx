@@ -9,6 +9,7 @@ const App: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const scanIntervalRef = useRef<NodeJS.Timeout | null>(null); // Để quản lý interval
 
   useEffect(() => {
     const savedData = localStorage.getItem('qrScanHistory');
@@ -20,6 +21,15 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('qrScanHistory', JSON.stringify(scannedData));
   }, [scannedData]);
+
+  // Cleanup interval khi unmount hoặc stop
+  useEffect(() => {
+    return () => {
+      if (scanIntervalRef.current) {
+        clearInterval(scanIntervalRef.current);
+      }
+    };
+  }, []);
 
   const startScanning = async () => {
     setError(null);
@@ -54,6 +64,10 @@ const App: React.FC = () => {
       stream.getTracks().forEach(track => track.stop());
       videoRef.current.srcObject = null;
     }
+    if (scanIntervalRef.current) {
+      clearInterval(scanIntervalRef.current);
+      scanIntervalRef.current = null;
+    }
     setIsScanning(false);
     setScanResult(null);
     setError(null);
@@ -68,7 +82,7 @@ const App: React.FC = () => {
 
     if (!context) return;
 
-    const scanInterval = setInterval(() => {
+    scanIntervalRef.current = setInterval(() => {
       if (!isScanning || video.readyState !== video.HAVE_ENOUGH_DATA) return;
 
       canvas.width = video.videoWidth;
@@ -77,18 +91,17 @@ const App: React.FC = () => {
       context.drawImage(video, 0, 0, canvas.width, canvas.height);
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
 
-      const code = jsQR(imageData.data, imageData.width, imageData.height);
+      const code = jsQR(imageData.data, imageData.width, imageData.height, {
+        inversionAttempts: "dontInvert",
+      });
       if (code) {
         const newData = code.data || "Dữ liệu QR không đọc được";
         setScanResult(newData);
         setScannedData(prev => [newData, ...prev]);
         stopScanning();
-        clearInterval(scanInterval);
         return;
       }
-    }, 300);
-
-    return () => clearInterval(scanInterval);
+    }, 300); // Quét mỗi 300ms
   };
 
   const clearHistory = () => {
@@ -101,6 +114,8 @@ const App: React.FC = () => {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text).then(() => {
       alert("Đã sao chép!");
+    }).catch(() => {
+      alert("Không thể sao chép, thử thủ công.");
     });
   };
 
@@ -194,7 +209,7 @@ const App: React.FC = () => {
             <div className="card-header flex items-center justify-between">
               <h2 className="card-title">Lịch sử quét</h2>
               {scannedData.length > 0 && (
-                <button onClick={clearHistory} className="text-red-500 hover:text-red-700">
+                <button onClick={clearHistory} className="text-red-500 hover:text-red-700 p-1 rounded">
                   <Trash2 className="w-5 h-5" />
                 </button>
               )}
@@ -248,7 +263,7 @@ const App: React.FC = () => {
               <li>Đưa QR vào khung (trên mobile có hướng dẫn đỏ)</li>
               <li>Tự động nhận diện và lưu</li>
               <li>Xem lịch sử bên phải, xóa nếu cần</li>
-              <li className="text-blue-600 font-medium">Test với QR từ qr-code-generator.com</li>
+              <li><span className="text-blue-600 font-medium">Test với QR từ qr-code-generator.com</span></li>
             </ol>
           </div>
         </div>
